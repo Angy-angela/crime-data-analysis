@@ -1,0 +1,1271 @@
+---
+title: "crime-data-analysis"
+author: "Angelina K"
+date: "9/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+
+# Introduction
+
+The following report presents the exploration and modeling of the *Communities and Crime* data set, acquired from the UCI machine learning repository website. The data set involves 2215 observations and 147 variables. One important advantage of this data set is that the data source includes a detailed explanation of the variable.
+
+# Decription of Variables in the *Communities and Crime* data set
+
+
+- General Information (non-predictive) Variables 
+  + Community name (string)
+  + U.S. state (categorical)
+  + County Code (numeric)
+  + Community Code (numeric)
+  + Fold (numeric)
+- Demographic Variables (i.e, population, age, ethnicity)
+  + As total number or average (2 variables, continuous)
+  + As percentage of population (8 variables, continuous)
+- Income Variables (i.e, median household income, per capita income, etc.)
+  + As total number or median (2 variables, continuous)
+  + As percentage of population (6 variables, continuous)
+  + Per capita (7 variables, continuous)
+- Community Variables (i.e, the total number or percent of the population considered urban, the total number percentage of people under the poverty level, number of people in homeless shelters, number of homeless people counted in the street, etc.)
+  + As total number (4 variables, continuous)
+  + As percentage of population (6 variables, continuous)
+- Education Variables (i.e, percentage of people 25 and over with a bachelor's degree or higher education, etc.)
+  + As percentage of population (3 variables, continuous)
+- Employment Status Variables (i.e, percentage of people 16 and over who are employed, percentage of people 16 and over who are employed in management or professional occupations, etc.)
+  + As percentage (6 variables, continuous)
+- Marital Status Variables (i.e, percentage of males/females who are divorced or have never married, percentage of population who are divorced)
+  + As percentage of population (4 variables, continuous)
+- Household/Family Characteristics Variables (i.e, mean number of people per family, percentage of kids in family housing with two parents, percentage of kids born to never married, percent of family households that are large, mean persons per household, etc.)
+  + As total number or average (3 variables, continuous)
+  + As percentage (9 variables, continuous)
+- Foreign born/Immigrated Variables (i.e, total number of people known to be foreign born, percent of population who have immigrated within the last 5 years, percent of people who do not speak English well, etc.)
+  + As total number (1 variable, continuous)
+  + As percentage of population (11 variables, continuous)
+- Housing Variables (i.e, mean persons per owner occupied/rental household, median number of bedrooms, number of vacant households, percent of vacant housing that has been vacant more than 6 months, median year housing units built, owner occupied housing - median value, rental housing - median rent, median gross rent as a percentage of household income, etc.)
+  + As total number, mean, median, or lower/upper quartile (17 variables, continuous)
+  + As percentage (9 variables, continuous)
+- Law Enforcement Variables (i.e, number of sworn full time police officers, percent of sworn full time police officers on patrol, total requests for police, police average overtime worked, police operating budget, etc.)
+  + As total number or average (12 variables, continuous)
+  + As percentage of population (7 variables, continuous)
+  + Per 100K population (4 variables, continuous)
+- Other law enforcement Variables (i.e, population density in persons per square mile, percent of people using public transit for commuting, land area in square miles)
+  + As total number (2 variables, continuous)
+  + As percentage of population (1 variable, continuous)
+- Crime Variables (i.e, number of robberies in 1995, number of robberies per 100K population, number of auto thefts in 1995, number of auto thefts per 100K population, total number of violent crimes per 100K population, total number of non-violent crimes per 100K population, etc. )
+  + As total number (8 variables, continuous)
+  + Per 100K population (10 variables, continuous)  
+
+\vspace{12pt}
+
+# Data Exploration
+
+R command `read_csv("crimedata.csv")` allows importing data without any modifications as long as the current `.Rmd` file is placed in the same folder with the `crimedata.csv` file.
+
+The following R commands allow us to explore the dimension, variable names, and the number of the missing values in the *Communities and Crime* data set:
+
+\vspace{12pt}
+```{r load_data, message = FALSE, warning = FALSE}
+library(dplyr)
+library(readxl)
+library(readr)
+crimedata <- read_csv("crimedata.csv", na= c("?", "NA"))
+
+options(width = 80)
+# structure
+#str(crimedata)
+dim(crimedata)
+
+names(crimedata)
+
+sum(is.na(crimedata))
+colSums(is.na(crimedata))
+```
+\vspace{12pt}
+
+Unfortunately, many of the law enforcement variables starting from *LemasSwornFT* (i.e., number of sworn full time police officers) have a large number of missing values: 1872 out of 2215, i.e., almost 85% of the values are missing. The data source website includes the following explanation for this: "a limitation was that the LEMAS survey was of the police departments with at least 100 officers, plus a random sample of smaller departments. For our purposes, communities not found in both census and crime data sets were omitted. Many communities are missing LEMAS data". Several non-predictive variables, such as countryCode and communityCode have many missing values as well. However, those are not important for the analysis. 
+
+I exclude the variables with many missing values: 
+
+```{r, collapse=TRUE}
+crimedata1 <- crimedata[ -c(1, 3:5, 104:120, 124:127, 129) ]
+dim(crimedata1)
+```
+\vspace{12pt}
+
+
+For the regression analysis, the *Violent Crime Rate* and *Non-violent Crime Rate* will be used as the response variables (separately). The data source provides two variables: *ViolentCrimesPerPop* and *nonViolPerPop* (i.e., total number of violent and non-violent crimes per 100K population, respectively). It also includes some detail on how those variables were generated. I have checked that the total number of different types of crimes divided by the total population for a community approximately matches the sum of these two variables divided by 100,000. Also, all of the percentage type variables in the data set are in the percentage form (not in decimal form). Thus, I define the *Viol.Rate* and *nonViol.Rate* as (*ViolentCrimesPerPop*/100,000 x 100) and (*nonViolPerPop*/100,000 x 100), respectively. The predictors will include all the other variables except for the individual types of different crimes in terms of the total number and the number that is given per 100K population. However, I will still use these individual types of crimes in the data exploration step. 
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+Viol.Rate <- round(crimedata1$ViolentCrimesPerPop/1000, digits=5)
+nonViol.Rate <- round(crimedata1$nonViolPerPop/1000, digits=5)
+crimedata2 <- data.frame(crimedata1, Viol.Rate, nonViol.Rate)
+head(crimedata2[,120:123])
+crimedata2 <- crimedata2[ -c(120:121)]
+dim(crimedata2)
+```
+\vspace{12pt}
+
+
+Since the data set is quite large, examining pairwise linear associations between all variables is not very practical. Yet, investigating strong linear correlations that appear to be significant may be helpful. I use the following function to gain some insight:
+
+\vspace{12pt}
+```{r, collapse=TRUE, fig.align='center', fig.height=6, fig.width=7}
+# A function to select significant correlations
+#install.packages("corrplot")
+library(corrplot)
+
+corr.fn <- function(data, sig){
+  #convert data to numeric in order to run correlations
+  #convert to factor first to keep the integrity of the data
+  # each value will become a number rather than turn into NA
+  df_cor <- data %>% mutate_if(is.character, as.factor)
+  df_cor <- df_cor %>% mutate_if(is.factor, as.numeric)
+  #run a correlation and drop the insignificant ones
+  corr <- cor(df_cor, use="complete.obs")
+  #prepare to drop duplicates and correlations of 1     
+  corr[lower.tri(corr, diag=TRUE)] <- NA 
+  #drop perfect correlations
+  corr[corr == 1] <- NA 
+  #turn into a 3-column table
+  corr <- as.data.frame(as.table(corr), row.names= NULL, optional = FALSE)
+  #dim(corr)
+  #remove the NA values from above 
+  corr <- na.omit(corr) 
+  #select significant values  
+  corr <- subset(corr, abs(Freq) > sig) 
+  #sort by highest correlation
+  corr <- corr[order(-abs(corr$Freq)), ] 
+  #print table
+  print(corr, row.names = FALSE)
+  #turn corr back into matrix in order to plot with corrplot
+  mtx_corr <- reshape2::acast(corr, Var1~Var2, value.var="Freq")
+  
+  mtx_corr1 <- mtx_corr[ 1:20, 1:20]  
+  #dim(mtx_corr1)
+  #plot correlations visually
+  corrplot(mtx_corr1, is.corr=FALSE, tl.col="black", na.label=" ")
+  }
+
+corr.fn(data=crimedata2, sig=0.85)
+```
+\vspace{12pt}
+
+Based on the fact that many variables are provided as a total number and also as a percentage of the population, per capita or per 100K population value, etc., one can expect some of the predictors to be highly correlated. As such, we notice, for example, that the percentage of immigrants who immigrated within the last 8 years has a strong linear positive correlation with the percentage of immigrants who immigrated within the last 10 years. The same is true for other immigration-related variables, housing and rent variables, etc. Some other interesting correlations include: *population* (population of a community) and *NumUnderPov* (the number of people under the poverty level) with the correlation of *0.9892*; *NumUnderPov* (the number of people under the poverty level) and *NumKidsBornNeverMar* (the number of kids born to never married) with the correlation of *0.9828*; *NumImmig* (the total number of people known to be foreign-born) and *NumStreet* (the number of homeless people counted in the street) with the correlation of *0.9355*; *racePctHisp* (the percentage of the population that is of Hispanic heritage) and *PctSpeakEnglOnly* (the percent of people who speak only English) with the negative correlation coefficient of *-0.915*; *pctWWage* (the percentage of households with wage or salary income) has a negative correlation of *-0.902* with *pctWSocSec* (the percentage of households with social security income).       
+
+ 
+Many of the crime variables have high significant positive correlations among themselves (i.e, *burglaries* and *larcenies*, *robberies* and *autoTheft*, etc.).  
+
+Several crime types, including *robberies*, *autoTheft*, *murders*, *burglaries*, *assaults*, *larcenies*, and *rapes* have a strong positive linear association with one or more of the following variables: *NumUnderPov* (the number of people under the poverty level), *NumKidsBornNeverMar* (the number of kids born to never married), *population* (population of a community), *numbUrban* (number of people living in areas classified as urban), *NumImmig* (the total number of people known to be foreign-born), *NumStreet* (the number of homeless people counted in the street), *NumInShelters* (the number of people in homeless shelters), and *HousVacant* (the number of vacant households).  
+
+
+The dark blue circles on the plot indicate some of the strong positive linear associations while the dark red circles display some of the strong negative associations among the variables.
+
+\vspace{12pt}
+
+## Summary Statistics
+
+To explore the relationship between the predictors and the response variables, I first look at the descriptive statistics of the reduced data set, excluding the rows with the remaining missing values:
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+sum(is.na(crimedata2))
+crimedata3 <- na.omit(crimedata2)  
+dim(crimedata3)
+```
+\vspace{12pt}
+
+The final data set for the analysis contains 1901 rows, which is 314 observation less than the original data set. 
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+summary(crimedata3)
+```
+\vspace{12pt}
+
+A **five-number summary** of the data consists of the following five sample quantiles: the *minimum*, the *first quartile*, the *median*, the *third quartile*, and the **maximum**. The *mean* is also included in the summary.
+
+Several variables, such as *pctUrban* and *LemasPctOfficDrugUn* seem to be not very informative. There are some potential outliers on the high side of the data.
+
+
+## Association
+
+It is also important to check the association between the two response variables and the predictors. Considering the classification part of the analysis, I also check the correlation between  *PctBSorMore* (the percentage of people 25 and over with a bachelors degree or higher education) and other variables and between *medIncome* (median household income) and other variables. 
+
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+cor(crimedata3$Viol.Rate, crimedata3[ -c(1) ])
+cor(crimedata3$nonViol.Rate, crimedata3[ -c(1) ])
+cor(crimedata3$PctBSorMore, crimedata3[ -c(1) ])
+cor(crimedata3$medIncome, crimedata3[ -c(1) ])
+```
+\vspace{12pt}
+
+
+The variable _**Viol.Rate**_ has a moderate to strong positive correlation with all the crime types variables in the form of per 100K population and the following predictor variables:
+
+- *racepctblack* (the percentage of population that is african american, *0.63*) 
+- *pctWPubAsst* (the percentage of households with public assistance income, *0.56*) 
+- *PctPopUnderPov* (the percentage of people under the poverty level, *0.5*) 
+- *MalePctDivorce*, *FemalePctDiv*, *TotalPctDiv* (the percentage of males/females/total who are divorced, *0.51*, *0.54*, *0.54*) 
+- *PctKidsBornNeverMar* (the percentage of kids born to never married, *0.74*); 
+
+and a moderate negative correlation with:
+
+- *racePctWhite* (the percentage of population that is caucasian, *-0.68*) 
+- *pctWInvInc* (the percentage of households with investment / rent income, *-0.56*) 
+- *PctFam2Par* (the percentage of families (with kids) that are headed by two parents, *-0.7*) 
+- *PctKids2Par* (the percentage of kids in family housing with two parents, *-0.73*) 
+- *PctYoungKids2Par* (the percent of kids 4 and under in two parent household, *-0.66*) 
+- *PctTeen2Par* (the percent of kids age 12-17 in two parent households, *-0.65*)
+- *PctPersOwnOccup* (the percent of people in owner occupied households, *-0.51*).
+
+\vspace{12pt}
+
+The variable _**nonViol.Rate**_ has a moderate to strong positive correlation with most of the crime types variables in the form of per 100K population, especially with *burglPerPop* (the number of burglaries per 100K population, *0.81*) and *larcPerPop* (the number of larcenies per 100K population, *0.94*) and the following predictor variables: 
+
+- *PctPopUnderPov* (the percentage of people under the poverty level, *0.51*)
+- *MalePctDivorce*, *FemalePctDiv*, *TotalPctDiv* (the percentage of males/females/total who are divorced, *0.59*, *0.6*, *0.6*)
+- *PctKidsBornNeverMar* (the percentage of kids born to never married, *0.55*);
+
+and a moderate negative correlation with:
+
+- *PctFam2Par* (the percentage of families (with kids) that are headed by two parents, *-0.66*)
+- *PctKids2Par* (the percentage of kids in family housing with two parents, *-0.67*) 
+- *PctYoungKids2Par* (the percent of kids 4 and under in two parent household, *-0.61*) 
+- *PctTeen2Par* (the percent of kids age 12-17 in two parent households, *-0.62*)
+- *PctPersOwnOccup* (the percent of people in owner occupied households, *-0.5*).
+
+\vspace{12pt}
+
+The variable _**PctBSorMore**_ has a moderate positive linear association with:
+
+- *medIncome* (the median household income, *0.68*)
+- *pctWInvInc* (the percentage of households with investment / rent income, *0.74*) 
+- *medFamInc* (the median family income - differs from household income for non-family households, *0.77*) 
+- *perCapInc* (per capita income, *0.77*)
+- *whitePerCap* (per capita income for caucasians, *0.77* )
+- *PctEmplProfServ* (the percentage of people 16 and over who are employed in professional services, *0.59*)
+- *PctOccupMgmtProf* (the percentage of people 16 and over who are employed in management or professional occupations, *0.95*)
+- *OwnOccLowQuart*, *OwnOccMedVal*, *OwnOccHiQuart*   (owner occupied housing - lower/median/upper quartile value, *0.6*, *0.63*, *0.65*)
+- *OwnOccQrange* (owner occupied housing - difference between upper quartile and lower quartile values, *0.62*)
+- *RentLowQ*, *RentMedian*, *RentHighQ* (rental housing - lower/median/upper quartile rent, *0.54*, *0.58*, *0.6*)
+- *MedRent* (the median gross rent, *0.57*)
+
+and a moderate negative correlation with:
+
+- *pctWPubAsst* (the percentage of households with public assistance income, *-0.56*) 
+- *PctLess9thGrade* (the percentage of people 25 and over with less than a 9th grade education, *-0.58*)
+- *PctNotHSGrad* (the percentage of people 25 and over that are not high school graduates, *-0.75*)
+- *PctUnemployed* (the percentage of people 16 and over, in the labor force, and unemployed, *-0.55*)
+- *PctOccupManu* (the percentage of people 16 and over who are employed in manufacturing, *-0.77*)
+- *PctHousNoPhone* (the percent of occupied housing units without phone, *-0.52*)
+
+All the correlation coefficients between *PctBSorMore* and all the crime variables are relatively small and negative.
+
+\vspace{12pt}
+
+The variable _**medIncome**_ has a moderate to strong positive correlation with:
+
+- *pctWWage* (the percentage of households with wage or salary income, *0.58*)
+- *pctWInvInc* (the percentage of households with investment / rent income, *0.75*) 
+- *medFamInc* (the median family income, *0.98*)
+- *perCapInc* (per capita income, *0.89*)
+- *whitePerCap* (per capita income for caucasians, *0.84*)
+- *blackPerCap* (per capita income for african americans, *0.52*)
+- *HispPerCap* (per capita income for people with hispanic heritage, *0.63*)
+- *PctBSorMore* (the percentage of people 25 and over with a bachelors degree or higher education, *0.68*)
+- *PctEmploy* (the percentage of people 16 and over who are employed, *0.6*)
+- *PctOccupMgmtProf* (the percentage of people 16 and over who are employed in management or professional occupations, *0.73*)
+- *PctFam2Par* (the percentage of families (with kids) that are headed by two parents, *0.72*)
+- *PctKids2Par* (the percentage of kids in family housing with two parents, *0.7*) 
+- *PctYoungKids2Par* (the percent of kids 4 and under in two parent household, *0.7*) 
+- *PctTeen2Par* (the percent of kids age 12-17 in two parent households, *0.61*)
+- *PctPersOwnOccup* (the percent of people in owner occupied households, *0.62*)
+- *PctHousOwnOcc* (the percent of households owner occupied, *0.59*)
+- *OwnOccLowQuart*, *OwnOccMedVal*, *OwnOccHiQuart*   (owner occupied housing - lower/median/upper quartile value, *0.8*, *0.79*, *0.78*)
+- *OwnOccQrange* (owner occupied housing - difference between upper quartile and lower quartile values, *0.61*)
+- *RentLowQ*, *RentMedian*, *RentHighQ* (rental housing - lower/median/upper quartile rent, *0.81*, *0.85*, *0.85*)
+261
+- *RentQrange* (rental housing - difference between upper quartile and lower quartile rent, *0.62*) 
+- *MedRent* (the median gross rent, *0.86*)
+
+
+and a moderate negative linear association with:
+
+- *pctWPubAsst* (the percentage of households with public assistance income, *-0.63*)
+- *PctPopUnderPov* (the percentage of people under the poverty level, *-0.76*) 
+- *PctLess9thGrade* (the percentage of people 25 and over with less than a 9th grade education, *-0.54*)
+- *PctNotHSGrad* (the percentage of people 25 and over that are not high school graduates, *-0.66*)
+- *PctUnemployed* (the percentage of people 16 and over, in the labor force, and unemployed, *-0.62*) 
+- *PctOccupManu* (the percentage of people 16 and over who are employed in manufacturing, *-0.6*)
+- *MalePctDivorce*, *FemalePctDiv*, *TotalPctDiv* (the percentage of males/females/total who are divorced, *-0.56*, *-0.54*, *-0.56*)
+- *PctHousLess3BR* (the percent of housing units with less than 3 bedrooms, *-0.62*)
+- *PctHousNoPhone* (the percent of occupied housing units without phone, *-0.7*)
+
+
+*medIncome* has a weak to moderate negative linear association with all types of crime variables. The largest values are for *rapesPerPop* (*-0.44*), burglPerPop (*-0.41*), larcPerPop (*-0.45*), and the total *nonViol.Rate* (*-0.47*). 
+
+
+As has been mentioned earlier, the individual crime types will be excluded from the analysis since the information about them is contained in the two response variables.
+
+Also, since *PctBSorMore* and *medIncome* have quite similar pattern in association with other variables, it is probably more interesting to use the education variable *PctBSorMore* for the classification analysis. 
+
+\vspace{12pt}
+
+## Graphics
+
+Finally, it may be helpful to visualize the relationships between the response variables and several of the predictors.
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+par(mfrow = c(2, 2))
+plot(crimedata3$Viol.Rate, crimedata3$PctKidsBornNeverMar, 
+     xlab = "Violent Crime Rate",
+     ylab = "PctKidsBornNeverMar", col="skyblue")
+plot(crimedata3$nonViol.Rate, crimedata3$PctKidsBornNeverMar, 
+     xlab = "Non-violent Crime Rate",
+     ylab = "PctKidsBornNeverMar", col="skyblue")
+
+plot(crimedata3$Viol.Rate, crimedata3$PctKids2Par, 
+     xlab = "Violent Crime Rate",
+     ylab = "PctKids2Par", col="skyblue")
+plot(crimedata3$nonViol.Rate, crimedata3$PctKids2Par, 
+     xlab = "Non-violent Crime Rate",
+     ylab = "PctKids2Par", col="skyblue")
+```
+\vspace{12pt}
+
+The top two plots display a moderate positive linear relationship between *Violent Crime Rate* and *PctKidsBornNeverMar* as well as between *Non-violent Crime Rate* and *PctKidsBornNeverMar* (the percentage of kids born to never married). The bottom two plots display a moderate negative linear association between *Violent Crime Rate* and *PctKids2Par* as well as between *Non-violent Crime Rate* and *PctKids2Par* (the percentage of kids in family housing with two parents).
+
+\newpage
+```{r, collapse=TRUE, fig.align='center', fig.height=4, fig.width=6}
+par(mfrow = c(1, 2))
+plot(crimedata3$medIncome, crimedata3$PctBSorMore, 
+     xlab = "medIncome",
+     ylab = "PctBSorMore", col="skyblue")
+plot(crimedata3$PctBSorMore, crimedata3$PctOccupMgmtProf, 
+     xlab = "PctBSorMore",
+     ylab = "PctOccupMgmtProf", col="skyblue")
+```
+\vspace{12pt}
+
+The first plot shows that the two variables *PctBSorMore* and *medIncome* have a moderate to strong linear relationship. The second plot displays a strong linear association between *PctBSorMore* and *PctOccupMgmtProf* (the percentage of people 16 and over who are employed in management or professional occupations).
+
+
+\newpage
+```{r, warning = FALSE, message = FALSE}
+
+library(ggplot2) 
+library(tidyr) 
+
+# Histograms for some variables 
+crimedata.h1 <- crimedata3[ c(14, 17, 18,
+                              30, 33, 34, 
+                              36, 38, 39,
+                              41, 43, 46) ]
+crimedata.h1 %>% 
+  gather(key, value) %>%
+  ggplot(aes(x = value)) +
+  facet_wrap(~ key, scales = 'free') +
+  geom_histogram(alpha = 0.7)
+
+
+crimedata.h2 <- crimedata3[ c(52, 54, 69, 71, 
+                              75, 79, 82, 86,
+                              89, 102, 120, 121)]
+crimedata.h2 %>% 
+  gather(key, value) %>%
+  ggplot(aes(x = value)) +
+  facet_wrap(~ key, scales = 'free') +
+  geom_histogram(alpha = 0.7)
+```
+
+Histograms graphically summarize the distribution of a variable. Most of the displayed variables' distributions are somewhat skewed either to the right or to the left. Several variables appear to be approximately symmetric (for instance, *pctWSocSec* and *PctHousLess3BR*). 
+
+\newpage
+```{r, warning = FALSE, message = FALSE}
+# Boxplots for some variables
+crimedata.h1 %>% 
+  gather(key, value) %>%
+  ggplot(aes(y = value, x = '')) +
+  facet_wrap(~ key, scales = 'free') +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = '')
+
+crimedata.h2 %>% 
+  gather(key, value) %>%
+  ggplot(aes(y = value, x = '')) +
+  facet_wrap(~ key, scales = 'free') +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = '')
+```
+
+
+Boxplots display mostly skewed data with outliers, including both of the response variables *Violent Crime Rate* and *Non-violent Crime Rate*,  *PctKidsBornNeverMar*, *PctUsePubTrans*, and *medIncome* among others.
+
+\newpage
+
+# Regression Analysis
+
+The individual crime variables and the variable *state* are excluded from the analysis. I also exclude *numbUrban*, *NumUnderPov* and keep *pctUrban* and *PctPopUnderPov*.
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+# When trying OLS two variables: OwnOccQrange (84) and RentQrange (88)
+# are not defined because of singularity.
+# The variables are not linearly independent. 
+# I remove the variables that are giving NA 
+# and obtain the same result for the rest of the variables. 
+# This is because the information given by those two variables is 
+# already contained in the other variables and thus redundant.
+crimedata4 <- crimedata3[ -c(1, 12, 29, 84, 88, 104:119)]
+#names(crimedata4)
+dim(crimedata4)
+sum(is.na(crimedata4))
+```
+\vspace{12pt}
+
+Since there is still a large number of the predictor variables, I will apply the $OLS$ to gain a general idea about the model fit and two other methods - stepwise selection, and the lasso regression - as they have the ability of selecting the parameters to include in the final model. 
+
+Standardizing the response and the predictors, which are all continuous variables:
+
+\vspace{12pt}
+```{r}
+# Standardize the data
+crimedata4.std <- data.frame(scale(crimedata4))
+#quick check 
+summary(crimedata4.std[ c(30, 43, 99, 100)])
+```
+\vspace{12pt}
+
+Let's first consider the non-violent crime rate as the response variable.
+
+
+## The response variable: *nonViol.Rate* (non-violent crime rate)
+
+\vspace{12pt}
+```{r}
+nv.crimedata4.std <- crimedata4.std[ ,-99]
+dim(nv.crimedata4.std)
+set.seed(7)
+n  <- dim(nv.crimedata4.std)[1]
+ID <- sample(1:n, size = 600, replace = FALSE)
+
+training <- nv.crimedata4.std[-ID,]
+testing  <- nv.crimedata4.std[ID,]
+```
+\vspace{12pt}
+
+The step above performs a random split of the data into training and testing sets, leaving 600 observations (approximately 30% of the data) in the testing set.
+
+### Linear Model using Least Squares (OLS)
+
+Fitting a linear model using the $OLS$ on the training set and reporting the test error ($MSE$):
+
+\vspace{12pt}
+```{r}
+ols.fit <- lm(nonViol.Rate ~ ., data = training)
+summary(ols.fit)
+
+ols.test <- testing[, 'nonViol.Rate'] - predict(ols.fit, 
+                      newdata = testing, type = 'response')
+# test MSE
+ols.test.MSE <- mean(ols.test**2)
+ols.test.MSE
+```
+\vspace{12pt}
+
+The $OLS$ model determines a total of 17 predictors to be statistically significant at 0.05 level of significance:
+
+ - *pctWSocSec* the percentage of households with social security income;
+ - *PersPerRentOccHous* - mean persons per rental household;
+ - *PopDens* - population density in persons per square mile;
+ - *agePct12t21* - the percentage of population that is 12-21 in age;
+ - *pctWRetire* - the percentage of households with retirement income;
+ - *PctPopUnderPov* - the percentage of people under the poverty level; 
+ - *PctEmploy* - the percentage of people 16 and over who are employed;
+ - *MalePctNevMarr* - the percentage of males who have never married;
+ - *PctPersOwnOccup* - the percent of people in owner occupied households;
+ - *PctHousOwnOcc* - the percent of households owner occupied;
+ - *agePct16t24* - the percentage of population that is 16-24 in age;
+  - *PctOccupMgmtProf* - the percentage of people 16 and over who are employed in management or professional occupations;
+ - *PctKids2Par* - the percentage of kids in family housing with two parents;
+ - *HousVacant* - the number of vacant households;
+ - *PctVacMore6Mos* - the percent of vacant housing that has been vacant more than 6 months;
+ - *RentLowQ* - rental housing - lower quartile rent;
+ - *LemasPctOfficDrugUn* - the percent of officers assigned to drug units.
+
+
+For this model, $test\,MSE$ value is 0.362. The $R_{adj}^2 = 0.552$ of the $OLS$ suggests that a more flexible model than a linear one may work better for these data.
+
+
+### Assumptions Check
+
+\vspace{12pt}
+```{r}
+par(mfrow = c(2,2))
+plot(ols.fit)
+```
+\vspace{12pt}
+
+The residuals vs. fitted values plot (as well as the third plot) should look more or less random, however it shows some outliers. The normal probability plot is not ideal either as several points deviate from the straight line. The last plot (Cook’s distance) reveals which points have the greatest influence on the regression (leverage points). 
+
+Removing three leverage points improves the model performance: 
+
+\vspace{12pt}
+```{r}
+r <- abs(ols.fit$residuals)
+order((r), decreasing = TRUE)[1:3]
+
+training <- training[ -c(1099, 65, 587),]
+
+ols.fit <- lm(nonViol.Rate ~ ., data = training)
+summary(ols.fit)
+
+ols.test <- testing[, 'nonViol.Rate'] - predict(ols.fit, 
+                      newdata = testing, type = 'response')
+# test MSE
+ols.test.MSE <- mean(ols.test**2)
+ols.test.MSE
+```
+\vspace{12pt}
+
+
+The $test\,MSE$ value has decreased from 0.362 to 0.354. The $R_{adj}^2 = 0.604$.
+
+
+### Stepwise Selection
+
+Applying the $Stepwise$ selection to the above model with $AIC$ and reporting the final model and the obtained test error:
+
+\vspace{12pt}
+```{r}
+step.fit <- step(ols.fit, direction = 'both', trace = 0, k = 2)
+# k = 2 gives the genuine AIC
+step.test <- testing[, 'nonViol.Rate'] - predict(step.fit, 
+                        newdata = testing, type = 'response') 
+
+# Final model and test error
+summary(step.fit)
+step.test.MSE <- mean(step.test**2)
+step.test.MSE
+```
+\vspace{12pt}
+
+The $Stepwise$ selection procedure includes 55 variables in the final model. In addition to the variables listed in the previous section (the $OLS$ modeling), there are several variables related to ethnicity, income, employment (i.e., the percentage of people employed in manufacturing/in professional services), education, immigration, marital status (i.e., the percentage of males who are divorced), housing (i.e., the median year housing units built), etc.   
+
+The $test\,MSE$ value is 0.351. The $R_{adj}^2 = 0.612$, which is a slight improvement from the $OLS$ model.
+
+### LASSO Regression Analysis
+
+The LASSO regression analysis on the training data includes plotting the solution path, plotting the cross-validation errors, and selecting the best tuning parameter that minimizes the cross-validation error. The test error is also reported.
+
+\vspace{12pt}
+```{r, message = FALSE, warning = FALSE, fig.align='center'}
+
+library(glmnet)
+
+x.train <- model.matrix(nonViol.Rate ~ 0+., data = training)
+x.new   <- model.matrix(nonViol.Rate ~ 0+., data = testing)
+
+lasso <- glmnet(x.train, training[,'nonViol.Rate'], alpha = 1,
+                standardize = FALSE)
+set.seed(7)
+# cross-validation to tune the hyper-parameters
+cv.lasso <- cv.glmnet(x.train, training[,'nonViol.Rate'], alpha = 1,
+                      standardize = FALSE)
+
+par(mfrow = c(1,2))
+plot(lasso, 'norm', label = T)
+plot(cv.lasso)
+
+bst_lmd <- cv.lasso$lambda.min
+
+# observe coefficients
+coef.lasso <- predict(lasso, x.new,
+                      s=bst_lmd, type="coefficient", mode="fraction")
+round(coef.lasso, 5)
+
+
+lasso.test <- predict(lasso, newx = x.new,
+              s = bst_lmd, type = 'response') - testing[,'nonViol.Rate']
+
+lasso.test.MSE <- mean((lasso.test)**2)
+lasso.test.MSE
+```
+\vspace{12pt}
+
+The $LASSO$ model has the effect of forcing some of the coefficient estimates to be exactly 0, yielding a sparse model, which includes only a subset of variables, similar to the stepwise selection methods. The solution path for the $LASSO$ model determines 73 predictors to be included in the model. The $test\,MSE$ value is 0.339.
+
+
+### Summary of Results: *nonViol.Rate* (non-violent crime rate)
+
+\vspace{12pt}
+```{r}
+
+#### Calculating testing R^2
+
+test.avg <- mean(testing[, 'nonViol.Rate'])
+ols.pred <- predict(ols.fit, newdata = testing)
+ols.test.R2 <- 1-mean((testing[,'nonViol.Rate']-
+          ols.pred)^2)/mean((testing[, 'nonViol.Rate']-test.avg)^2)
+
+
+step.pred <- predict(step.fit, newdata = testing)
+step.test.R2 <- 1-mean((testing[,'nonViol.Rate']-
+        step.pred)^2)/mean((testing[, 'nonViol.Rate']-test.avg)^2)
+
+
+lasso.pred <- predict(lasso, x.new, s=bst_lmd)
+lasso.test.R2 <- 1-mean((testing[,'nonViol.Rate']-
+        lasso.pred)^2)/mean((testing[, 'nonViol.Rate']-test.avg)^2)
+
+
+nv.test.R2 <- rbind(c("OLS", "Stepwise", "LASSO"),
+          round(c(ols.test.R2, step.test.R2, lasso.test.R2), digits=3))
+
+
+nv.adj.R2 <- rbind(c("OLS", "Stepwise"), c(0.604, 0.612))
+
+nv.test.MSE <- rbind(c("OLS", "Stepwise", "LASSO"),
+        round(c(ols.test.MSE, step.test.MSE, lasso.test.MSE), digits=3))
+
+
+nv.test.MSE
+nv.adj.R2
+nv.test.R2
+```
+\vspace{12pt}
+
+
+The $test\,MSE$ improves for the $Stepwise$ selection approach compared to the $OLS$, and it further improves for the $LASSO$ method. However, the $R_{adj}^2$ of the $OLS$ and $Stepwise$ models suggest that linear models do not approximate very well the true function regardless of the type of a model. Perhaps, a more flexible model or addition of some other predictor variables could lead to better estimation and lower $test\,MSE$.
+
+The $R^2$ is the proportion of variation in *y*, explained by the regression. It measures the goodness of fit of a model. The higher $R^2$ is, the greater is the explanatory power of the regression model. The $R_{adj}^2$ takes into account the relative simplicity of a model. A decrease in $R_{adj}^2$ from the addition of one or more predictors signals that the added variable(s) are of little importance in the regression equation.  
+
+In addition to computing the generalization error (or test error), it may be interesting to compute the $R^2$ on the testing data set to gain some idea about the predictive quality of the model. If the model generalizes well, the value of $R_{testing}^2$ should not be much different from $R_{training}^2$. And this is what we observe here.
+
+The table below summarizes the results of the analysis.
+
+Model    |    MSE       | $R_{adj}^2$
+---------|--------------|-----------
+OLS      |   $0.354$    | $0.604$
+Stepwise |   $0.351$    | $0.612$
+LASSO    |   $0.339$    | 
+
+
+
+## The response variable: *Viol.Rate* (violent crime rate)
+
+
+\vspace{12pt}
+```{r}
+v.crimedata4.std <- crimedata4.std[ ,-100]
+dim(v.crimedata4.std)
+set.seed(7)
+n  <- dim(v.crimedata4.std)[1]
+ID <- sample(1:n, size = 600, replace = FALSE)
+
+training <- v.crimedata4.std[-ID,]
+testing  <- v.crimedata4.std[ID,]
+```
+\vspace{12pt}
+
+The step above performs a random split of the data into training and testing sets, leaving 600 observations (approximately 30% of the data) in the testing set.
+
+### Linear Model using Least Squares (OLS)
+
+Fitting a linear model using the $OLS$ on the training set and reporting the test error ($MSE$):
+
+\vspace{12pt}
+```{r}
+ols.fit <- lm(Viol.Rate ~ ., data = training)
+summary(ols.fit)
+
+ols.test <- testing[, 'Viol.Rate'] - predict(ols.fit, newdata = testing,
+                                               type = 'response')
+# test MSE
+ols.test.MSE <- mean(ols.test**2)
+ols.test.MSE
+```
+\vspace{12pt}
+
+The $OLS$ model determines a total of 20 predictors to be statistically significant at 0.05 level of significance:
+
+ - *HousVacant* - the number of vacant households;
+ - *racepctblack* - the percentage of population that is african american;
+ - *pctUrban* - percentage of people living in areas classified as urban;
+ - *PctPersDenseHous* - percent of persons in dense housing; 
+ - *PctVacantBoarded* - the percent of vacant housing that is boarded up;
+ - *MedOwnCostPctIncNoMtg* - the median owners cost as a percentage of household income - for owners without a mortgage;
+ - *PopDens* - population density in persons per square mile; 
+ - *LemasPctOfficDrugUn* - the percent of officers assigned to drug units;
+ - *population* - population for community; 
+ - *pctWRetire* - the percentage of households with retirement income;
+ - *PctLess9thGrade* - the percentage of people 25 and over with less than a 9th grade education;
+ - *PctKids2Par* - the percentage of kids in family housing with two parents;
+ - *PctWorkMom* - the percentage of moms of kids under 18 in labor force;  
+ - *PctKidsBornNeverMar* - the percentage of kids born to never married;
+ - *NumImmig* - the total number of people known to be foreign born;  
+ - *PersPerRentOccHous* - the mean persons per rental household;
+ - *PctPersOwnOccup* - the percent of people in owner occupied households;
+ - *PctHousOwnOcc* - the percent of households owner occupied;
+ - *RentLowQ* - rental housing - lower quartile rent;
+ - *MedRent* - the median gross rent.
+ 
+
+For this model, the $test\,MSE$ value is 0.311. The $R_{adj}^2 = 0.659$ of the $OLS$ suggests that the linear model works somewhat better when using violent crime rate as the response variable compared to the model with the non-violent crime rate as the response.
+
+
+### Assumptions Check
+
+\vspace{12pt}
+```{r}
+par(mfrow = c(2,2))
+plot(ols.fit)
+```
+\vspace{12pt}
+
+The residuals vs. fitted values plot does not show a completely random pattern suggesting some violation of the constant variance assumption. The Normal Q-Q plot reveals even more deviation from the normal distribution of error than in the non-violent crime rate modeling scenario.
+
+Removing three leverage points improves the model performance: 
+
+\vspace{12pt}
+```{r}
+r <- abs(ols.fit$residuals)
+order((r), decreasing = TRUE)[1:3]
+
+training <- training[ -c(925, 576, 381),]
+
+ols.fit <- lm(Viol.Rate ~ ., data = training)
+summary(ols.fit)
+
+ols.test <- testing[, 'Viol.Rate'] - predict(ols.fit, newdata = testing,
+                                               type = 'response')
+# test MSE
+ols.test.MSE <- mean(ols.test**2)
+ols.test.MSE
+```
+\vspace{12pt}
+
+
+The $test\,MSE$ value has decreased from 0.311 to 0.308. The $R_{adj}^2 = 0.671$.
+
+
+### Stepwise Selection
+
+Applying the $stepwise selection$ to the above model with $AIC$ and reporting the final model and the obtained test error:
+
+\vspace{12pt}
+```{r}
+step.fit <- step(ols.fit, direction = 'both', trace = 0, k = 2)
+step.test <- testing[, 'Viol.Rate'] - predict(step.fit, newdata = testing,
+                                                 type = 'response') 
+
+# Final model and test error
+summary(step.fit)
+step.test.MSE <- mean(step.test**2)
+step.test.MSE
+```
+\vspace{12pt}
+
+The $stepwise selection$ procedure includes 46 variables in the final model. There are several variables related to ethnicity, age, income, education (i.e., the percentage of people 25 and over with less than a 9th grade education/that are not high school graduates), employment, family and marital status (i.e., the percentage of moms of kids under 18 in labor force, the percentage of males who are divorced/who have never married), immigration (i.e., total number of people known to be foreign born, the percentage of immigrants who immigrated within last 3 years), housing and rent, population density in persons per square mile, community characteristics (i.e., percent of people living in the same house 5 years before, number of homeless people counted in the street), etc.   
+
+The $test\,MSE$ value is 0.304. The $R_{adj}^2 = 0.678$.
+
+
+### LASSO Regression Analysis
+
+\vspace{12pt}
+```{r, message = FALSE, warning = FALSE, fig.align='center'}
+
+x.train <- model.matrix(Viol.Rate ~ 0+., data = training)
+x.new   <- model.matrix(Viol.Rate ~ 0+., data = testing)
+
+lasso <- glmnet(x.train, training[,'Viol.Rate'], alpha = 1,
+                standardize = FALSE)
+set.seed(7)
+# cross-validation to tune the hyper-parameters
+cv.lasso <- cv.glmnet(x.train, training[,'Viol.Rate'], alpha = 1,
+                      standardize = FALSE)
+
+par(mfrow = c(1,2))
+plot(lasso, 'norm', label = T)
+plot(cv.lasso)
+
+bst_lmd <- cv.lasso$lambda.min
+
+# observe coefficients
+coef.lasso <- predict(lasso, x.new,
+                      s=bst_lmd, type="coefficient", mode="fraction")
+round(coef.lasso, 5)
+
+
+lasso.test <- predict(lasso, newx = x.new,
+              s = bst_lmd, type = 'response') - testing[,'Viol.Rate']
+
+lasso.test.MSE <- mean((lasso.test)**2)
+lasso.test.MSE
+```
+\vspace{12pt}
+
+The solution path for the $LASSO$ model determines 21 predictors to be included in the model. The $test\,MSE$ value is 0.299.
+
+
+
+### Summary of Results: *Viol.Rate* (violent crime rate)
+
+\vspace{12pt}
+```{r}
+
+#### Calculating testing R^2
+
+test.avg <- mean(testing[, 'Viol.Rate'])
+ols.pred <- predict(ols.fit, newdata = testing)
+ols.test.R2 <- 1-mean((testing[,'Viol.Rate']-
+            ols.pred)^2)/mean((testing[, 'Viol.Rate']-test.avg)^2)
+
+
+step.pred <- predict(step.fit, newdata = testing)
+step.test.R2 <- 1-mean((testing[,'Viol.Rate']-
+        step.pred)^2)/mean((testing[, 'Viol.Rate']-test.avg)^2)
+
+
+lasso.pred <- predict(lasso, x.new, s=bst_lmd)
+lasso.test.R2 <- 1-mean((testing[,'Viol.Rate']-
+              lasso.pred)^2)/mean((testing[, 'Viol.Rate']-test.avg)^2)
+
+
+v.test.R2 <- rbind(c("OLS", "Stepwise", "LASSO"),
+          round(c(ols.test.R2, step.test.R2, lasso.test.R2), digits=3))
+
+
+v.test.MSE <- rbind(c("OLS", "Stepwise", "LASSO"),
+        round(c(ols.test.MSE, step.test.MSE, lasso.test.MSE), digits=3))
+
+
+v.adj.R2 <- rbind(c("OLS", "Stepwise"), c(0.671, 0.678))
+
+v.test.MSE
+v.adj.R2
+v.test.R2
+```
+\vspace{12pt}
+
+The $test\,MSE$ marginally improves for the $Stepwise$ selection approach compared to the $OLS$, and there is an additional small improvement for the $LASSO$ regression. The $LASSO$ model is the most parsimonious as it includes only 21 predictors and thus it seems to be the best model out of the ones presented in the current analysis.    
+
+Both the $test\,MSE$ and $R_{adj}^2$ suggest that linear models work a bit better for predicting the violent crime rate than for predicting non-violent crime rate. However, a more flexible model or addition of other explanatory variables could possibly lead to even better estimation and lower $test\,MSE$.
+
+
+Model    |    MSE       | $R_{adj}^2$
+---------|--------------|-----------
+OLS      |   $0.308$    | $0.671$
+Stepwise |   $0.304$    | $0.678$
+LASSO    |   $0.299$    | 
+
+
+
+\newpage
+
+# Classification Analysis
+
+The second part of the analysis will focus on determining the factors that  possibly lead to a larger % of people with bachelor's degree or higher education in a community.  
+
+
+Since the data set does not explicitly include a label for each community with a large % of people with bachelor's degree or higher, such a variable will be generated using the *PctBSorMore* (the percentage of people 25 and over with a bachelors degree or higher education). For the purpose of the analysis, communities with the % of educated people in the 66.7 percentile or above will be considered "more educated".   
+
+\vspace{12pt}
+```{r}
+summary(crimedata4$PctBSorMore)
+# there are outliers: several communities have a large % of educated people
+boxplot(crimedata4$PctBSorMore)
+quantile(crimedata4$PctBSorMore,probs=2/3)
+Edu <- ifelse(crimedata4$PctBSorMore < 25, 0, 1)
+# exclude all education related variables
+class.crimedata <- data.frame(crimedata4[, -c(28:30)], Edu)
+summary(class.crimedata$Edu)
+sum(class.crimedata$Edu)
+dim(class.crimedata)
+```
+\vspace{12pt}
+
+We can once again have a look at the correlation coefficients for the *Edu* (which reflexes the associations for *PctBSorMore*) and the other variables:
+
+\vspace{12pt}
+```{r, collapse=TRUE}
+cor(class.crimedata$Edu, class.crimedata)
+```
+\vspace{12pt}
+
+Some of the moderate to strong positive linear associations with *Edu* include *PctOccupMgmtProf* (the percentage of people 16 and over who are employed in management or professional occupations), *medFamInc* (the median family income - differs from household income for non-family households), *pctWInvInc* (the percentage of households with investment / rent income), *perCapInc* (per capita income), *whitePerCap* (per capita income for caucasians, *medIncome* (the median household income), and *OwnOccLowQuart*, *OwnOccMedVal*, *OwnOccHiQuart*   (owner occupied housing - lower/median/upper quartile value). 
+
+Some of the moderate negative linear associations with *Edu* include *PctOccupManu* (the percentage of people 16 and over who are employed in manufacturing), *pctWPubAsst* (the percentage of households with public assistance income), and *PctHousNoPhone* (the percent of occupied housing units without phone)
+
+
+We consider two inputs at a time and use them to assess the possibilities for the observations to belong to the "more educated" class or "less educated" class.
+
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=4, fig.width=6}
+fact.class <- as.factor(class.crimedata$Edu)
+
+#par(mfrow = c(1, 2))
+plot(x = class.crimedata$PctOccupMgmtProf, 
+     y = class.crimedata$pctWPubAsst, 
+     pch = as.character(class.crimedata$Edu), 
+     col = c("skyblue", "purple")[fact.class])
+
+plot(x = class.crimedata$pctWInvInc, 
+     y = class.crimedata$PctOccupManu, 
+     pch = as.character(class.crimedata$Edu), 
+     col = c("skyblue", "purple")[fact.class])
+```
+\vspace{12pt}
+
+By checking graphically the data set using just two variables at a time, we notice a clear possibility for a linear separation between communities with a higher % of educated people and those with lower % of educated people.  
+
+Again, randomly splitting the data into training and testing sets, leaving 600 observations (approximately 30% of data) in the testing set:
+
+\vspace{12pt}
+```{r}
+set.seed(7)
+n  <- dim(class.crimedata)[1]
+ID <- sample(1:n, size = 600, replace = FALSE)
+
+training <- class.crimedata[-ID,]
+testing  <- class.crimedata[ID,]
+```
+\vspace{12pt}
+
+
+## Parametric (model-based) Methods
+
+### LDA (Linear Discriminant Analysis)
+
+$LDA$ is a probabilistic learning method, which produces the posterior probabilities for each observation to belong to one of the two classes. $LDA$ assign the class label to the observation based on the largest posterior probability from the two groups. This method requires the equality of variance-covariance matrix assumption for the two groups which should be tested in the low-dimensional case. However, when the number of the predictors *p* is large, the $LDA$ is always preferred over the $QDA$ (Quadratic Discriminant Analysis) as $QDA$ highly relies on the normality assumption which is difficult to verify when *p* is large. The $LDA$ is robust to the violation of the multivariate normal assumption.
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=4, fig.width=6}
+library(MASS)
+# By default the prior is the sample proportion
+train.crimedata.lda <- lda(Edu ~ ., data = training)
+train.crimedata.predict <- predict(train.crimedata.lda)$posterior
+
+# The confusion matrix: the true class label vs. the predicted class label. 
+table(training$Edu, predict(train.crimedata.lda )$class)
+
+# The training error/the misclassification error rate
+mean(training$Edu!=predict(train.crimedata.lda)$class)
+
+#par(mfrow = c(1, 2))
+plot(x=training$PctOccupMgmtProf, y = training$pctWPubAsst, 
+     pch = as.character(training$Edu), 
+     col = c("skyblue", "purple")[predict(train.crimedata.lda)$class])
+
+plot(x=training$pctWInvInc, y = training$PctOccupManu, 
+     pch = as.character(training$Edu), 
+     col = c("skyblue", "purple")[predict(train.crimedata.lda)$class])
+
+
+# Test Data
+test.crimedata.predict <- predict(train.crimedata.lda, newdata = testing)
+
+# The confusion matrix
+table(testing$Edu, test.crimedata.predict$class)
+
+# The test error 
+mean(testing$Edu!=test.crimedata.predict$class)
+
+#par(mfrow = c(1, 2))
+plot(x=testing$PctOccupMgmtProf, y = testing$pctWPubAsst, 
+     pch = as.character(testing$Edu), 
+     col = c("skyblue", "purple")[test.crimedata.predict$class])
+
+plot(x=testing$pctWInvInc, y = testing$PctOccupManu, 
+     pch = as.character(testing$Edu), 
+     col = c("skyblue", "purple")[test.crimedata.predict$class])
+```
+\vspace{12pt}
+
+The training error is approximately *0.0438*. The test error is about *0.0617*, which is higher than the training error. The misclassification error for the test set is usually sufficiently higher than the training error when a linear model is capable of finding a reasonable discriminant line to separate the two group.
+ 
+The plots show that most of the misclassified observations are close to the border.
+
+Overall, the $LDA$ method seems to be a good fit for the data.
+
+
+### Logistic Regression
+
+The *Logistic Regression* can be characterized by so-called structural defect, i.e., a binary response and continuous predictors. Like the $LDA$, this method assumes the $logit(\pi)$. However, while in the $LDA$  the $logit(\pi)$ is derived by assuming the posterior probability function, i.e. that $X$ follows the multivariate normal distribution, the *Logistic Regression* the $logit(\pi)$ is derived from the Bernoulli distribution. Both assume the $logit(\pi)$ is a linear function of the predictors. Also, while the $LDA$ imposes the assumption on $X$ (marginal distribution), which is difficult to verify in the high dimensional scenario, the *Logistic Regression* assumes the conditional distribution of the response $Y|X$ ~ *Bernoulli*, which is in general a more reasonable assumption. Thus, while it is not important for the current project, the *Logistic Regression* is more flexible as it can intake both continuous and discrete predictors, while the $LDA$ is applicable for continuous predictors only. The  *Logistic Regression* is more practical when *p* is not large and it allows the interpretation of the coefficients.     
+
+Both methods are relatively simple and should be used first for a classification problem as they allow to combine the effect of all the factors when identifying the difference between groups.
+
+The major limitation of the *Logistic Regression*, however, is the separation issue, i.e., the model set up requires some overlap between the groups and does not work for well-separated groups. The existence of the partial separation is very difficult to identify when the number of predictors is large and can be known from the error messages based on the *Logistic Regression* fit. This limitation makes the *Logistic Regression* impractical for applications with high dimensions and requires a remedy in a form of a reduced model.
+
+\vspace{12pt}
+```{r}
+fit.logit <- glm(Edu~., family=binomial(link=logit), data=training)
+```
+\vspace{12pt}
+
+As expected, the *Logistic Regression* does not converge due to the partial separation in the data. 
+
+#### Regularized Logistic Regression
+
+Using the $L_1$ penalty for variables selection and shrinkage to fit a reduced *Logistic Regression* resulted in the same error message:
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=4, fig.width=6}
+## L1 Logistic regression
+x.train <- model.matrix(Edu ~ 0+., data = training)
+x.new   <- model.matrix(Edu ~ 0+., data = testing)
+
+class.lasso <- glmnet(x.train, training[,'Edu'], family = "binomial")
+
+# solution path
+plot(class.lasso, xvar = "dev", label = TRUE)
+pred.lasso <- predict(class.lasso,type="response",newx=x.new, s=c(0.01,0.05))
+
+
+cvfit <- cv.glmnet(x.train, training[,'Edu'], family = "binomial", type.measure = "class")
+#plot(cvfit)
+
+#cvfit$lambda.min
+#cvfit$lambda.1se
+coef(cvfit, s = "lambda.min")
+
+fit.logit <- glm(Edu~population+householdsize+racepctblack+racePctAsian+
+                   agePct16t24+agePct65up+pctUrban+medIncome+pctWWage+
+                   pctWFarmSelf+pctWInvInc+pctWSocSec+
+                   pctWPubAsst+pctWRetire+medFamInc+perCapInc+
+                   blackPerCap+indianPerCap+AsianPerCap+
+                   OtherPerCap+HispPerCap+PctPopUnderPov+PctUnemployed+
+                   PctEmploy+PctEmploy+PctEmplManu+PctEmplProfServ+PctOccupManu+
+                   PctOccupMgmtProf+MalePctDivorce+MalePctNevMarr+
+                   PctYoungKids2Par+PctTeen2Par+
+                   PctWorkMomYoungKids+NumKidsBornNeverMar+PctKidsBornNeverMar+
+                   NumImmig+PctImmigRec5+PctImmigRec8+PctRecImmig10+
+                   PctSpeakEnglOnly+PctNotSpeakEnglWell+PctLargHouseFam+
+                   PersPerOccupHous+PersPerOwnOccHous+PctPersOwnOccup+
+                   PctPersOwnOccup+PctHousLess3BR+HousVacant+
+                   PctHousOccup+PctVacantBoarded+PctVacMore6Mos+MedYrHousBuilt+
+                   PctHousNoPhone+PctWOFullPlumb+OwnOccHiQuart+RentLowQ+
+                   RentHighQ+MedRentPctHousInc+MedOwnCostPctInc+
+                   MedOwnCostPctIncNoMtg+NumInShelters+
+                   NumStreet+PctForeignBorn+PctSameHouse85+PctSameState85+
+                   PopDens+PctUsePubTrans+LemasPctOfficDrugUn+
+                   Viol.Rate+nonViol.Rate, 
+                   family=binomial(link=logit), data=training)
+```
+\vspace{12pt}
+
+## Classification Tree (CART)
+
+While the $LDA$ and the *Logistic Regression* are model-based, interpretable methods that allow the estimation of classification probability, they are not as flexible as, for instance, a local classifier $kNN$. However, non model-based classifiers cannot estimate probabilities and are not interpretable (i.e., they are useful for prediction but cannot be used to study the relative importance among the inputs).
+
+Some approaches in between the two mentioned above are the tree-based methods. Such methods are non-model based, however they are interpretable and can provide the estimation of the probabilities. They can also handle both continuous and categorical features in a simple and natural way, enjoy automatic stepwise selection and impurity reduction; they are invariant under monotonic transformation and, which is important for the current project, robust to outliers due to the feature truncation which reduces the effect of the extreme values. Some of the limitations include high variance due to the hierarchical nature of the splitting process; results may differ if there are even small changes in data, i.e. tree models suffer from instability. It is important to avoid overfitting by "pruning a tree" and apply the cost-complexity measure to achieve an efficient algorithm when using such methods.  
+
+Considering the importance of the pruning and controlling the complexity of the parameters I build the *Classification Tree* model using two different packages.
+
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=8, fig.width=10}
+library(tree)
+
+crimedata.tree <- tree(Edu ~ ., data = training)
+crimedata.tree
+
+plot(crimedata.tree)
+text(crimedata.tree)
+```
+\vspace{12pt}
+
+
+```{r, fig.align='center', fig.height=4, fig.width=6}
+
+crimedata.tree.cv <- cv.tree(crimedata.tree, K = nrow(training))
+crimedata.tree.cv
+
+plot(crimedata.tree.cv)
+
+crimedata.tree <- tree(as.factor(Edu) ~ ., data = training)
+crimedata.prune.tree<-prune.tree(crimedata.tree, best = 6)
+
+
+confusion <- function(a, b){
+  tbl <- table(a, b)
+  mis <- 1 - sum(diag(tbl))/sum(tbl)
+  list(table = tbl, misclass.prob = mis)
+}
+
+confusion(predict(crimedata.prune.tree, type="class"), training$Edu)
+confusion(predict(crimedata.prune.tree, testing, type="class"), testing$Edu)
+```
+\vspace{12pt}
+
+
+Using an alternative package:
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=4, fig.width=6}
+library(rpart)
+library(rpart.plot)
+
+crimedata.rp <- rpart(Edu ~ ., data = training, method="class")
+rpart.plot(crimedata.rp)
+
+confusion(predict(crimedata.rp, type="class"), training$Edu)
+confusion(predict(crimedata.rp, testing, type="class"), testing$Edu)
+
+```
+\vspace{12pt}
+
+Apparently, only a few features, mainly *PctOccupMgmtProf* (the percentage of people 16 and over who are employed in management or professional occupations), *agePct16t24* (the percentage of the population that is 16-24 in age), and *pctWPubAsst* (the percentage of households with public assistance income), are sufficient to build a decision tree model that fits the data. *PctOccupMgmtProf* is reused in the model. Some other features used by the model include *pctWRetire* (the percentage of households with retirement income), *PctSameCity85* (the percent of people living in the same city for 5 years as in 1985), and *PctUsePubTrans* (the percent of people using public transit for commuting). 
+
+The $tree$ package model provides a smaller misclassification error on the testing data set. Thus, for the *Classification Tree* method I report the training error of *0.0561* and the test error of *0.0633*. The test error is slightly higher than for the $LDA$ method. 
+
+
+## Ensemble Classifiers 
+
+The main goal of all the ensemble classifiers is to improve the performance of individual "weak learners" that suffer from instability by constructing many classifiers from the same data and combining or averaging the outputs together. This allows to reduce the variability and to improve the prediction accuracy. 
+
+
+### Bagging
+
+Each node of a *Classification Tree* provides only a local optimal decision due to the instability of the method. In most cases a single tree model is not sufficiently accurate. Ensemble classifiers allow to construct multiple tree models from the same training sample, using bootstrap resampling.
+
+While the $Bagging$ ensemble classifier can reduce the variance and improve the prediction accuracy by aggregating predictions from multiple individual tree models built from the bootstrap samples and classifying observations by consensus voting or by averaging probabilities, it has some important limitation such as loss of interpretability and the fact that it requires the individual classifiers to be independent. As a result, it cannot handle well highly correlated predictor variables, leading to increased bias, and thus may not be the best choice for the *Communities and Crime* data. Nevertheless, I attempt using the $Bagging$ method. The most important turning parameter for this method is the number of the bootstrap samples. Most of the time 25 or 50 bootstrap replicates provide the most reasonable misclassification rate. Again, I apply two alternative packages *ipred* and *rpart*.  
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=4, fig.width=6}
+library(ipred)
+# The number of bootstrap samples of 25 provides the best test error 
+crimedata.bag1 <- bagging(as.factor(Edu) ~ ., data = training, coob = T)
+crimedata.bag1 
+
+acc=(testing[,98]==predict(crimedata.bag1, testing))
+1-length(acc[acc=="TRUE"])/length(acc)
+
+crimedata.bag1$mtrees[[1]]$btree
+
+confusion(predict(crimedata.bag1, type="class"), training$Edu)
+confusion(predict(crimedata.bag1, testing, type="class"), testing$Edu)
+
+# For 50 bootstrap samples the test error increases
+# The out-of-bag estimate of the misclassification error decreases
+crimedata.bag2 <- bagging(as.factor(Edu) ~ ., data = training, nbagg=50, coob = T)
+crimedata.bag2 
+acc=(testing[,98]==predict(crimedata.bag2, testing))
+1-length(acc[acc=="TRUE"])/length(acc)
+
+
+
+# rpart package
+crimedata.bag3 <- bagging(as.factor(Edu) ~ ., data = training, coob = T)
+crimedata.bag3
+acc=(testing[,98]==predict(crimedata.bag3, testing))
+1-length(acc[acc=="TRUE"])/length(acc)
+```
+\vspace{12pt}
+
+This method utilizes a lot more predictor variables compared to a single *Classification Tree*. The $ipred$ package model provides a smaller test error of approximately *0.0483*. The out-of-bag estimate of the misclassification error from the training sample is approximately *0.0638*, which is higher than the test error. Since many of the individual features in the *Communities and Crime* are correlated, this might be due to the increased bias issue that the $Bagging$ method suffers from. There are other possible explanations, however. For instance, this could mean that the method generalizes well.   
+
+### Random Forest
+
+The *Random Forest* method extends $Bagging$ by decreasing the correlation among individual classifiers. In addition to subsetting individual observations (by bootstrapping), it also samples the features at each step which allows to de-correlate the classifiers. Thus, the classifiers from the bootstrap samples may contain different subsets of the predictors. As a rule of thumb, the number of variables tried at each split is roughly a square root of the total number of the features. This method allows assessing the relative importance of the features in terms of the overall prediction. It provides numerical measures and relative importance plots based on the mean decrease in terms of the different impurity measures, such as prediction error (*Accuracy*) or the *Gini Index*. The goal is still to achieve the largest reduction in terms of the impurity of a tree node.
+
+The *Random Forest* allows to further reduce the misclassification error.
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=3, fig.width=4}
+crimedata.tr2 <- training
+crimedata.tr2$Edu <- as.factor(training$Edu)
+crimedata.te2 <- testing
+crimedata.te2$Edu <- as.factor(testing$Edu)
+
+
+library(randomForest)
+
+# Number of variables tried at each node by default is 9
+# Increasing this # to 18 provides the lowest test error
+crimedata.rf = randomForest(Edu ~., data=crimedata.tr2, mtry=18, importance=TRUE)
+crimedata.rf
+#summary(crimedata.rf)
+confusion(predict(crimedata.rf, crimedata.te2), crimedata.te2$Edu)
+
+plot(crimedata.rf)
+```
+\vspace{12pt}
+
+Numerical measures and relative importance plots based on the mean decrease in terms of the *Accuracy* and *Gini Index*:
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=8, fig.width=10}
+
+varImpPlot(crimedata.rf, main = "Relative Importance Plots")
+
+# relative importance of each feature
+cbind(importance(crimedata.rf, type=1), importance(crimedata.rf, type=2))
+```
+\vspace{12pt}
+
+
+The *Random Forest* method with 18 variables tried at each split has the training error of *0.0553* and the test error of *0.0433*. Again, the test error is lower than the training error.
+
+
+### Boosting
+
+While $Bagging$ and *Random Forest* both build multiple classification trees in parallel, the $Boosting$ uses ensemble learning in a sequential way instead of bootstrapping: it re-weights the original observations, giving the misclassified observations higher weights before constructing the next tree. One of the concerns with the ensemble methods is overfitting. $Boosting$ is known to be resistant to overfitting. 
+
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=8, fig.width=10}
+library(gbm)
+crimedata.boost <- gbm(Edu ~ ., data = training, distribution = "bernoulli")
+summary(crimedata.boost)
+crimedata.boost
+```
+\vspace{12pt}
+
+We can see that *PctOccupMgmtProf* is by far the most important variable. 
+
+\vspace{12pt}
+```{r, fig.align='center', fig.height=4, fig.width=5}
+
+best.iter <- gbm.perf(crimedata.boost, method="OOB")
+print(best.iter)
+#summary(crimedata.boost, n.trees=best.iter) 
+
+crimedata.tr <- (predict(crimedata.boost, n.trees=best.iter)>0)*TRUE
+confusion(crimedata.tr, training$Edu)
+
+crimedata.predict <- (predict(crimedata.boost, testing, n.trees=best.iter)>0)*TRUE 
+confusion(crimedata.predict, testing$Edu)
+
+```
+\vspace{12pt}
+
+
+The $Boosting$ method has the training error of *0.0430* and the test error of *0.0467*. Again, the test error is lower than the training error.
+
+
+## Model Comparison
+
+The table below summarizes the results of the classification analysis.
+
+Model    | Training error | Test error
+---------|----------------|-----------
+LDA      |   $4.38\%$     | $6.17\%$
+CART     |   $5.61\%$     | $6.33\%$
+Bagging  |   $6.38\%$      | $4.83\%$
+RF       |   $5.53\%$     | $4.33\%$
+Boosting |   $4.30\%$     | $4.67\%$
+
+The *Random Forest* model performs the best since it has the smallest misclassification rate on the test data set.
+
